@@ -1,0 +1,8 @@
+
+results/
+
+embedding_word2vec\.txt
+
+*.png
+
+model\.h5
