@@ -8,7 +8,7 @@ from keras.initializers import Constant
 import matplotlib.pyplot as plt
 import keras.backend as K
 from keras.utils import plot_model
-from keras.callbacks import ModelCheckpoint
+from keras.callbacks import ModelCheckpoint,EarlyStopping
 def f1(y_true, y_pred):
     y_pred = K.round(y_pred)
     tp = K.sum(K.cast(y_true*y_pred, 'float'), axis=0)
@@ -197,8 +197,8 @@ model = Sequential()
 embedding_layer=Embedding(num_words,EMB_DIM,embeddings_initializer=Constant(embedding_matrix),input_length=MAX_LENGTH,trainable=True)
 model.add(InputLayer(input_shape=(MAX_LENGTH, )))
 model.add(embedding_layer)
-model.add(Bidirectional(CuDNNLSTM(128, return_sequences=True)))
-model.add(Dropout(0.4))
+model.add(Bidirectional(CuDNNLSTM(256, return_sequences=True)))
+model.add(Dropout(0.3))
 model.add(TimeDistributed(Dense(len(tag2index),activation="relu")))
 model.add(Activation('softmax'))
  
@@ -222,8 +222,8 @@ def to_categorical(sequences, categories):
 
 cat_train_tags_y = to_categorical(train_tags_y, len(tag2index))
 print(cat_train_tags_y[0])
-
-history=model.fit(train_sentences_X, to_categorical(train_tags_y, len(tag2index)), batch_size=128, epochs=100,validation_data=(test_sentences_X, to_categorical(test_tags_y, len(tag2index))))
+es = EarlyStopping(monitor='val_ignore_accuracy', mode='max', verbose=1,patience=5)
+history=model.fit(train_sentences_X, to_categorical(train_tags_y, len(tag2index)), batch_size=256, epochs=100,callbacks=[es],validation_data=(test_sentences_X, to_categorical(test_tags_y, len(tag2index))))
 
 # Plot training & validation accuracy values
 plt.figure()
