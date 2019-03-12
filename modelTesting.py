@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import keras.backend as K
 from keras.utils import plot_model
 from keras.callbacks import ModelCheckpoint,EarlyStopping
+from keras.models import load_model
+
 def f1(y_true, y_pred):
     y_pred = K.round(y_pred)
     tp = K.sum(K.cast(y_true*y_pred, 'float'), axis=0)
@@ -33,6 +35,7 @@ def ignore_class_accuracy(to_ignore=0):
         accuracy = K.sum(matches) / K.maximum(K.sum(ignore_mask), 1)
         return accuracy
     return ignore_accuracy
+
 
 tagged_sentences = nltk.corpus.treebank.tagged_sents()
  
@@ -76,12 +79,7 @@ for ts in train_tags:
 
 word2index = {w: i + 2 for i, w in enumerate(list(words))}
 word2index['-PAD-'] = 0  # The special value used for padding
-word2index['-OOV-'] = 1  # The special value used for OOVs
- 
-tag2index = {t: i + 1 for i, t in enumerate(list(tags))}
-tag2index['-PAD-'] = 0  # The special value used to padding
- 
-#Declare Model Parameters
+word2index['-OOV-'] = 1  # The special value used for OOVs#Declare Model Parameters
 cbow = 0
 skipgram = 1
 EMB_DIM = 300 #more dimensions, more computationally expensive to train
@@ -104,13 +102,13 @@ w2v = Word2Vec(
     alpha = learning_rate, 
     min_alpha = min_learning_rate
 )
-print('Vocabulary size: %d' % len(words))
-w2v.build_vocab(train_sentences)
-w2v.train(train_sentences,epochs=10,total_examples=w2v.corpus_count)
-words = list(w2v.wv.vocab)
+#print('Vocabulary size: %d' % len(words))
+#w2v.build_vocab(train_sentences)
+#w2v.train(train_sentences,epochs=10,total_examples=w2v.corpus_count)
+#words = list(w2v.wv.vocab)
 # save model in ASCII (word2vec) format
-filename = 'embedding_word2vec.txt'
-w2v.wv.save_word2vec_format(filename, binary=False)
+#filename = 'embedding_word2vec.txt'
+#w2v.wv.save_word2vec_format(filename, binary=False)
 
 # ['Lorillard' 'Inc.' ',' 'the' 'unit' 'of' 'New' 'York-based' 'Loews'
 #  'Corp.' 'that' '*T*-2' 'makes' 'Kent' 'cigarettes' ',' 'stopped' 'using'
@@ -119,6 +117,10 @@ w2v.wv.save_word2vec_format(filename, binary=False)
 # ['NNP' 'NNP' ',' 'DT' 'NN' 'IN' 'JJ' 'JJ' 'NNP' 'NNP' 'WDT' '-NONE-' 'VBZ'
 #  'NNP' 'NNS' ',' 'VBD' 'VBG' 'NN' 'IN' 'PRP$' 'NN' 'NN' 'NNS' 'IN' 'CD'
 #  '.']
+ 
+tag2index = {t: i + 1 for i, t in enumerate(list(tags))}
+tag2index['-PAD-'] = 0  # The special value used to padding
+ 
 embeddings_index={}
 f=open(os.path.join('','embedding_word2vec.txt '),encoding="utf-8")
 for line in f:
@@ -192,24 +194,8 @@ print(test_tags_y[0])
 from keras.models import Sequential
 from keras.layers import Dense, CuDNNLSTM,LSTM, InputLayer, Bidirectional, TimeDistributed, Embedding, Activation,Dropout
 from keras.optimizers import Adam
-from keras.models import load_model
 
-model = Sequential()
-embedding_layer=Embedding(num_words,EMB_DIM,embeddings_initializer=Constant(embedding_matrix),input_length=MAX_LENGTH,trainable=True)
-model.add(InputLayer(input_shape=(MAX_LENGTH, )))
-model.add(embedding_layer)
-model.add(Bidirectional(CuDNNLSTM(128, return_sequences=True)))
-model.add(Dropout(0.3))
-model.add(TimeDistributed(Dense(len(tag2index),activation="relu")))
-model.add(Activation('softmax'))
- 
-model.compile(loss='categorical_crossentropy',
-              optimizer=Adam(0.001),
-              metrics=["accuracy",f1,ignore_class_accuracy(0)])
- 
-model.summary()
-plot_model(model, to_file='model.png')
-
+model = load_model("model.h5", custom_objects={'f1': f1,'ignore_accuracy':ignore_class_accuracy(0)})
 def to_categorical(sequences, categories):
     cat_sequences = []
     for s in sequences:
@@ -221,61 +207,35 @@ def to_categorical(sequences, categories):
     return np.array(cat_sequences)
 
 
-cat_train_tags_y = to_categorical(train_tags_y, len(tag2index))
-print(cat_train_tags_y[0])
-es = EarlyStopping(monitor='val_ignore_accuracy', mode='max', verbose=1,patience=5)
-history=model.fit(train_sentences_X, to_categorical(train_tags_y, len(tag2index)), batch_size=256, epochs=50,validation_data=(test_sentences_X, to_categorical(test_tags_y, len(tag2index))))
-
-# Plot training & validation accuracy values
-plt.figure()
-plt.plot(history.history['acc'])
-plt.plot(history.history['val_acc'])
-plt.title('Model accuracy')
-plt.ylabel('Accuracy')
-plt.xlabel('Epoch')
-plt.legend(['Train', 'Test'], loc='upper left')
-plt.savefig("fake_acc.png")
-
-plt.figure( )
-# Plot training & validation loss values
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.title('Model loss')
-plt.ylabel('Loss')
-plt.xlabel('Epoch')
-plt.legend(['Train', 'Test'], loc='upper left')
-plt.savefig("loss.png")
-
-# Plot training & validation loss values
-plt.figure()
-plt.plot(history.history['f1'])
-plt.plot(history.history['val_f1'])
-plt.title('Model f1')
-plt.ylabel('F1')
-plt.xlabel('Epoch')
-plt.legend(['Train', 'Test'], loc='upper left')
-plt.savefig("f1.png")
-
-# Plot training & validation loss values
-plt.figure()    
-plt.plot(history.history['ignore_accuracy'])
-plt.plot(history.history['val_ignore_accuracy'])
-plt.title('Final Accuracy')
-plt.ylabel('Final Accuracy')
-plt.xlabel('Epoch')
-plt.legend(['Train', 'Test'], loc='upper left')
-plt.savefig("real_acc.png")
-
-
 scores = model.evaluate(test_sentences_X, to_categorical(test_tags_y, len(tag2index)))
 print(model.metrics_names)   # acc: 99.09751977804825   
 print(scores)   # acc: 99.09751977804825
 
-model.save("model.h5")
-model2 = load_model("model.h5", custom_objects={'f1': f1,'ignore_accuracy':ignore_class_accuracy(0)})
-scores = model2.evaluate(test_sentences_X, to_categorical(test_tags_y, len(tag2index)))
-print(model2.metrics_names)   # acc: 99.09751977804825   
-print(scores)   # acc: 99.09751977804825
+def logits_to_tokens(sequences, index):
+    token_sequences = []
+    for categorical_sequence in sequences:
+        token_sequence = []
+        for categorical in categorical_sequence:
+            token_sequence.append(index[np.argmax(categorical)])
+ 
+        token_sequences.append(token_sequence)
+ 
+    return token_sequences
+
+
+from sklearn.metrics import classification_report
+from sklearn.metrics import precision_recall_fscore_support as score
+predictions= model.predict(test_sentences_X)
+y_pred=logits_to_tokens(predictions, {i: t for t, i in tag2index.items()})
+#print(classification_report(test_tags_y, y_pred))
+#print(test_tags_y)
+#print(y_pred)
+precision, recall, fscore, support = score(test_tags_y, y_pred)
+
+print('precision: {}'.format(precision))
+print('recall: {}'.format(recall))
+print('fscore: {}'.format(fscore))
+print('support: {}'.format(support))
 test_samples = [
     "running is very important for me .".split(),
     "I was running every day for a month .".split()
@@ -297,17 +257,6 @@ test_samples_X = pad_sequences(test_samples_X, maxlen=MAX_LENGTH, padding='post'
 
 
 predictions = model.predict(test_samples_X)
-def logits_to_tokens(sequences, index):
-    token_sequences = []
-    for categorical_sequence in sequences:
-        token_sequence = []
-        for categorical in categorical_sequence:
-            token_sequence.append(index[np.argmax(categorical)])
- 
-        token_sequences.append(token_sequence)
- 
-    return token_sequences
-
 
 final_pred=logits_to_tokens(predictions, {i: t for t, i in tag2index.items()})
 for x in range(len(test_samples)):
