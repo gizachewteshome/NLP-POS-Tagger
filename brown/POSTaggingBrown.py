@@ -34,7 +34,7 @@ def ignore_class_accuracy(to_ignore=0):
         return accuracy
     return ignore_accuracy
 
-tagged_sentences = nltk.corpus.treebank.tagged_sents()
+tagged_sentences = nltk.corpus.brown.tagged_sents(tagset="universal")
  
 print(tagged_sentences[0])
 print("Tagged sentences: ", len(tagged_sentences))
