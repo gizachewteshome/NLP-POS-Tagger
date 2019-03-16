@@ -34,11 +34,11 @@ def ignore_class_accuracy(to_ignore=0):
         return accuracy
     return ignore_accuracy
 
-tagged_sentences = nltk.corpus.brown.tagged_sents(tagset="universal")
+tagged_sentences = nltk.corpus.brown.tagged_sents()
  
 print(tagged_sentences[0])
 print("Tagged sentences: ", len(tagged_sentences))
-print("Tagged words:", len(nltk.corpus.treebank.tagged_words()))
+print("Tagged words:", len(nltk.corpus.brown.tagged_words()))
 
 import numpy as np
  
@@ -50,6 +50,22 @@ for tagged_sentence in tagged_sentences:
 print(sentences[:3])
 print(sentence_tags[5])
  
+words, tags = set([]), set([])
+ 
+for s in sentences:
+    for w in s:
+        words.add(w.lower())
+
+for ts in sentence_tags:
+    for t in ts:
+        tags.add(t)
+word2index = {w: i + 2 for i, w in enumerate(list(words))}
+word2index['-PAD-'] = 0  # The special value used for padding
+word2index['-OOV-'] = 1  # The special value used for OOVs
+ 
+tag2index = {t: i + 1 for i, t in enumerate(list(tags))}
+tag2index['-PAD-'] = 0  # The special value used to padding
+
 # ['Lorillard' 'Inc.' ',' 'the' 'unit' 'of' 'New' 'York-based' 'Loews'
 #  'Corp.' 'that' '*T*-2' 'makes' 'Kent' 'cigarettes' ',' 'stopped' 'using' 
 #  'crocidolite' 'in' 'its' 'Micronite' 'cigarette' 'filters' 'in' '1956'
@@ -64,21 +80,7 @@ from sklearn.model_selection import train_test_split
  
 train_sentences, test_sentences, train_tags, test_tags = train_test_split(sentences, sentence_tags, test_size=0.2,random_state=0    )
 
-words, tags = set([]), set([])
- 
-for s in train_sentences:
-    for w in s:
-        words.add(w.lower())
 
-for ts in train_tags:
-    for t in ts:
-        tags.add(t)
-word2index = {w: i + 2 for i, w in enumerate(list(words))}
-word2index['-PAD-'] = 0  # The special value used for padding
-word2index['-OOV-'] = 1  # The special value used for OOVs
- 
-tag2index = {t: i + 1 for i, t in enumerate(list(tags))}
-tag2index['-PAD-'] = 0  # The special value used to padding
 print(tag2index)
 #Declare Model Parameters
 cbow = 0
@@ -225,7 +227,7 @@ def to_categorical(sequences, categories):
 cat_train_tags_y = to_categorical(train_tags_y, len(tag2index))
 print(cat_train_tags_y[0])
 es = EarlyStopping(monitor='val_ignore_accuracy', mode='max', verbose=1,patience=5)
-history=model.fit(train_sentences_X, to_categorical(train_tags_y, len(tag2index)), batch_size=256, epochs=50,validation_data=(test_sentences_X, to_categorical(test_tags_y, len(tag2index))))
+history=model.fit(train_sentences_X, to_categorical(train_tags_y, len(tag2index)), batch_size=128, epochs=50,validation_data=(test_sentences_X, to_categorical(test_tags_y, len(tag2index))))
 
 # Plot training & validation accuracy values
 plt.figure()

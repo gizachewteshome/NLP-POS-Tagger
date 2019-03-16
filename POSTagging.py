@@ -194,19 +194,17 @@ from keras.optimizers import Adam
 from keras.models import load_model
 
 model = Sequential()
-embedding_layer=Embedding(num_words,EMB_DIM,embeddings_initializer=Constant(embedding_matrix),input_length=MAX_LENGTH,trainable=True)
+embedding_layer=Embedding(num_words,EMB_DIM,embeddings_initializer=Constant(embedding_matrix),input_length=MAX_LENGTH,trainable=True,mask_zero=True)
 model.add(InputLayer(input_shape=(MAX_LENGTH, )))
 model.add(embedding_layer)
-model.add(Bidirectional(CuDNNLSTM(128, return_sequences=True)))
-model.add(Dropout(0.5))
-model.add(Bidirectional(CuDNNLSTM(128, return_sequences=True)))
+model.add(Bidirectional(LSTM(128, return_sequences=True,recurrent_dropout=0.5)))
 model.add(Dropout(0.5))
 model.add(TimeDistributed(Dense(len(tag2index),activation="relu")))
 model.add(Activation('softmax'))
  
 model.compile(loss='categorical_crossentropy',
-              optimizer=Adam(0.001),
-              metrics=["accuracy",f1,ignore_class_accuracy(0)])
+              optimizer=Adam(0.001),    
+              metrics=["accuracy",f1])
  
 model.summary()
 plot_model(model, to_file='model.png')
@@ -257,15 +255,6 @@ plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
 plt.savefig("f1.png")
 
-# Plot training & validation loss values
-plt.figure()    
-plt.plot(history.history['ignore_accuracy'])
-plt.plot(history.history['val_ignore_accuracy'])
-plt.title('Final Accuracy')
-plt.ylabel('Final Accuracy')
-plt.xlabel('Epoch')
-plt.legend(['Train', 'Test'], loc='upper left')
-plt.savefig("real_acc.png")
 
 
 scores = model.evaluate(test_sentences_X, to_categorical(test_tags_y, len(tag2index)))
@@ -273,7 +262,7 @@ print(model.metrics_names)   # acc: 99.09751977804825
 print(scores)   # acc: 99.09751977804825
 
 model.save("model.h5")
-model2 = load_model("model.h5", custom_objects={'f1': f1,'ignore_accuracy':ignore_class_accuracy(0)})
+model2 = load_model("model.h5", custom_objects={'f1': f1})
 scores = model2.evaluate(test_sentences_X, to_categorical(test_tags_y, len(tag2index)))
 print(model2.metrics_names)   # acc: 99.09751977804825   
 print(scores)   # acc: 99.09751977804825
