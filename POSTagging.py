@@ -12,7 +12,6 @@ from keras.callbacks import ModelCheckpoint,EarlyStopping
 def f1(y_true, y_pred):
     y_pred = K.round(y_pred)
     tp = K.sum(K.cast(y_true*y_pred, 'float'), axis=0)
-    # tn = K.sum(K.cast((1-y_true)*(1-y_pred), 'float'), axis=0)
     fp = K.sum(K.cast((1-y_true)*y_pred, 'float'), axis=0)
     fn = K.sum(K.cast(y_true*(1-y_pred), 'float'), axis=0)
 
@@ -62,7 +61,7 @@ print(sentence_tags[5])
     
 from sklearn.model_selection import train_test_split
  
-train_sentences, test_sentences, train_tags, test_tags = train_test_split(sentences, sentence_tags, test_size=0.2,random_state=0    )
+train_sentences, test_sentences, train_tags, test_tags = train_test_split(sentences, sentence_tags, test_size=0.2,random_state=0)
 
 words, tags = set([]), set([])
  
@@ -84,7 +83,7 @@ print(tag2index)
 cbow = 0
 skipgram = 1
 EMB_DIM = 300 #more dimensions, more computationally expensive to train
-min_word_count = 1
+min_word_count = 5
 workers = multiprocessing.cpu_count() #based on computer cpu count
 context_size = 7
 downsampling = 1e-3
@@ -194,16 +193,19 @@ from keras.optimizers import Adam
 from keras.models import load_model
 
 model = Sequential()
-embedding_layer=Embedding(num_words,EMB_DIM,embeddings_initializer=Constant(embedding_matrix),input_length=MAX_LENGTH,trainable=True,mask_zero=True)
+#embedding_layer=Embedding(num_words,EMB_DIM,embeddings_initializer=Constant(embedding_matrix),input_length=MAX_LENGTH,trainable=True,mask_zero=True)
+embedding_layer=Embedding(num_words, 300,mask_zero=True)
 model.add(InputLayer(input_shape=(MAX_LENGTH, )))
 model.add(embedding_layer)
-model.add(Bidirectional(LSTM(200, return_sequences=True,recurrent_dropout=0.5)))
+model.add(Bidirectional(LSTM(128, return_sequences=True,activation="tanh")))
+model.add(Dropout(0.5))
+model.add(Bidirectional(LSTM(128, return_sequences=True,activation="tanh")))
 model.add(Dropout(0.5))
 model.add(TimeDistributed(Dense(len(tag2index),activation="relu")))
 model.add(Activation('softmax'))
  
 model.compile(loss='categorical_crossentropy',
-              optimizer=Adam(0.001),    
+              optimizer=Adam(0.01),    
               metrics=["accuracy",f1])
  
 model.summary()
@@ -216,14 +218,14 @@ def to_categorical(sequences, categories):
         for item in s:
             cats.append(np.zeros(categories))
             cats[-1][item] = 1.0
-        cat_sequences.append(cats)
+        cat_sequences.append(cats)  
     return np.array(cat_sequences)
 
 
 cat_train_tags_y = to_categorical(train_tags_y, len(tag2index))
 print(cat_train_tags_y[0])
-es = EarlyStopping(monitor='val_ignore_accuracy', mode='max', verbose=1,patience=5)
-history=model.fit(train_sentences_X, to_categorical(train_tags_y, len(tag2index)), batch_size=256, epochs=50,validation_data=(test_sentences_X, to_categorical(test_tags_y, len(tag2index))))
+es = EarlyStopping(monitor='val_acc', mode='max',verbose=1,patience=3,min_delta=0.003)
+history=model.fit(train_sentences_X, to_categorical(train_tags_y, len(tag2index)),batch_size=256, callbacks=[es], epochs=15,validation_data=(test_sentences_X, to_categorical(test_tags_y, len(tag2index))))
 
 # Plot training & validation accuracy values
 plt.figure()
